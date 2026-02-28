@@ -72,7 +72,7 @@ interface VoiceErrorPayload {
   message?: string;
 }
 
-const BASE_URL = process.env.YAPYAP_BASE_URL ?? "http://localhost:8080";
+const BASE_URL = process.env.YAPYAP_BASE_URL ?? "http://3.109.124.247:8080";
 const USERNAME = process.env.YAPYAP_USERNAME ?? "tui-user";
 const PASSWORD = process.env.YAPYAP_PASSWORD ?? "tui-pass-123";
 const AUTO_REGISTER = process.env.YAPYAP_AUTO_REGISTER !== "false";
