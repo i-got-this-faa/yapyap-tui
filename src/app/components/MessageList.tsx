@@ -16,7 +16,13 @@ export function MessageList({
   usersById,
 }: MessageListProps) {
   return (
-    <box flexGrow={1} paddingX={2} paddingTop={1} flexDirection="column">
+    <box
+      flexGrow={1}
+      paddingX={2}
+      paddingTop={1}
+      paddingBottom={1}
+      flexDirection="column"
+    >
       <box
         paddingBottom={1}
         border={["bottom"]}
