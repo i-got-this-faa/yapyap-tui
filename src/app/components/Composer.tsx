@@ -33,7 +33,6 @@ export function Composer({
       borderStyle="single"
       borderColor={colors.border}
       paddingX={2}
-      paddingBottom={1}
       flexDirection="row"
       onMouseDown={onFocus}
       backgroundColor={
@@ -43,18 +42,20 @@ export function Composer({
       <text fg={isFocused ? colors.accent1 : colors.dimText}>
         <strong>❯ </strong>
       </text>
-      <input
-        focused={isFocused}
-        flexGrow={1}
-        value={composer}
-        onChange={onChange}
-        onSubmit={onSubmit}
-        placeholder={placeholder}
-        placeholderColor={colors.placeholderText}
-        textColor={colors.primaryText}
-        focusedBackgroundColor={colors.inputFocusedBackground}
-        backgroundColor={colors.inputBackground}
-      />
+      <box flexGrow={1}>
+        <input
+          focused={isFocused}
+          width="100%"
+          value={composer}
+          onChange={onChange}
+          onSubmit={onSubmit}
+          placeholder={placeholder}
+          placeholderColor={colors.placeholderText}
+          textColor={colors.primaryText}
+          focusedBackgroundColor={colors.inputFocusedBackground}
+          backgroundColor={colors.inputBackground}
+        />
+      </box>
     </box>
   );
 }
