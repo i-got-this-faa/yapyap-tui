@@ -1,5 +1,6 @@
 import { colors } from "../theme";
-import type { User, VoiceParticipant } from "../types";
+import type { User } from "../types";
+import type { VoicePhase, VoiceRuntimeParticipant } from "../voice/VoiceState";
 
 interface UserPanelProps {
   knownUsers: readonly User[];
@@ -7,11 +8,13 @@ interface UserPanelProps {
   onToggleVoice: () => void;
   onToggleVoiceMute: () => void;
   voiceChannelId: number | null;
-  voiceChannelName: string;
+  voiceChannelName: string | null;
   voiceEnabled: boolean;
   voiceMuted: boolean;
-  voiceParticipantIndex: Record<number, VoiceParticipant>;
+  voiceParticipantIndex: Record<number, VoiceRuntimeParticipant>;
   voiceSocketReady: boolean;
+  voicePhase: VoicePhase;
+  voiceReconnecting: boolean;
 }
 
 export function UserPanel({
@@ -25,8 +28,42 @@ export function UserPanel({
   voiceMuted,
   voiceParticipantIndex,
   voiceSocketReady,
+  voicePhase,
+  voiceReconnecting,
 }: UserPanelProps) {
-  const voiceState = voiceEnabled ? (voiceSocketReady ? "rdy" : "con") : "off";
+  const getVoiceStateDisplay = (): string => {
+    if (!voiceEnabled) {
+      return "off";
+    }
+
+    switch (voicePhase) {
+      case "starting":
+        return "strt";
+      case "ready":
+        return voiceSocketReady ? "rdy" : "con";
+      case "joining":
+        return "join";
+      case "joined":
+        return "live";
+      case "leaving":
+        return "leave";
+      case "reconnecting":
+        return "rcon";
+      case "failed":
+        return "fail";
+      case "stopped":
+        return "stop";
+      case "disabled":
+        return "off";
+      default:
+        return "off";
+    }
+  };
+
+  const voiceState = getVoiceStateDisplay();
+  const channelDisplay = voiceChannelName ?? "-";
+  const muteDisplay = voiceMuted ? "mut" : "unm";
+  const reconnectingIndicator = voiceReconnecting ? " 🔄" : "";
 
   return (
     <box
@@ -47,7 +84,7 @@ export function UserPanel({
       <box height={1} />
 
       <text fg={colors.dimText}>
-        {voiceState} | #{voiceChannelName} | {voiceMuted ? "mut" : "unm"}
+        {voiceState} | #{channelDisplay} | {muteDisplay}{reconnectingIndicator}
       </text>
 
       <box flexDirection="column" gap={1} marginTop={1} marginBottom={1}>
@@ -68,7 +105,7 @@ export function UserPanel({
           focusable
         >
           <text fg={colors.primaryText}>
-            {voiceMuted ? "🔊 Unmute" : "🔇 Mute"}
+            {voiceMuted ? "Unmute" : "Mute"}
           </text>
         </box>
       </box>

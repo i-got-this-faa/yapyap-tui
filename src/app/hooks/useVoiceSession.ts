@@ -1,158 +1,58 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import { API_PATHS, APP_CONFIG, VOICE_SIGNAL_TYPES } from "../config";
-import type {
-  AppMode,
-  Channel,
-  User,
-  VoiceErrorPayload,
-  VoiceParticipant,
-  VoiceRoomState,
-  VoiceSignalMessage,
-} from "../types";
-import { isObjectRecord, randomRequestId, toWsUrl } from "../utils/network";
+import { getInitialVoiceState, type VoiceRuntimeState, type VoicePhase, type VoiceRuntimeParticipant } from "./voice/VoiceState";
+import type { Channel, User } from "../types";
 
-interface VoiceOptions {
+export interface UseVoiceSessionOptions {
   channels: readonly Channel[];
   me: User | null;
-  mode: AppMode;
-  onStatusLine: (message: string) => void;
+  supervisor: VoiceSupervisorAdapter | null;
   selectedChannel: Channel | null;
-  token: string | null;
+  onStatusLine: (message: string) => void;
 }
 
-interface DemoVoiceState {
-  channelId: number;
-  participants: VoiceParticipant[];
+export interface VoiceSessionReturn {
+  voiceEnabled: boolean;
+  voiceChannelId: number | null;
+  voiceChannelName: string | null;
+  voiceMuted: boolean;
+  voiceParticipants: VoiceRuntimeParticipant[];
+  voicePhase: VoicePhase;
+  voiceSocketReady: boolean;
+  voiceReconnecting: boolean;
+  joinVoice: () => Promise<void>;
+  leaveVoice: () => Promise<void>;
+  toggleVoiceMute: () => Promise<void>;
 }
 
-function parseVoiceParticipant(payload: unknown): VoiceParticipant | null {
-  if (!isObjectRecord(payload)) {
-    return null;
-  }
-
-  if (
-    typeof payload.user_id !== "number" ||
-    typeof payload.muted !== "boolean" ||
-    typeof payload.speaking !== "boolean"
-  ) {
-    return null;
-  }
-
-  return {
-    user_id: payload.user_id,
-    muted: payload.muted,
-    speaking: payload.speaking,
-  };
-}
-
-function parseVoiceRoomState(payload: unknown): VoiceRoomState | null {
-  if (!isObjectRecord(payload) || typeof payload.channel_id !== "number") {
-    return null;
-  }
-
-  const participants = Array.isArray(payload.participants)
-    ? payload.participants
-        .map((participant) => parseVoiceParticipant(participant))
-        .filter(
-          (participant): participant is VoiceParticipant =>
-            participant !== null,
-        )
-    : [];
-
-  return {
-    channel_id: payload.channel_id,
-    participants,
-  };
-}
-
-function parseVoiceErrorPayload(payload: unknown): VoiceErrorPayload | null {
-  if (!isObjectRecord(payload)) {
-    return null;
-  }
-
-  return {
-    code: typeof payload.code === "string" ? payload.code : undefined,
-    message: typeof payload.message === "string" ? payload.message : undefined,
-  };
-}
-
-function parseVoiceSignalMessage(raw: string): VoiceSignalMessage | null {
-  const parsed = JSON.parse(raw) as unknown;
-  if (!isObjectRecord(parsed) || typeof parsed.type !== "string") {
-    return null;
-  }
-
-  return {
-    version: typeof parsed.version === "string" ? parsed.version : undefined,
-    type: parsed.type,
-    request_id:
-      typeof parsed.request_id === "string" ? parsed.request_id : undefined,
-    channel_id:
-      typeof parsed.channel_id === "number" ? parsed.channel_id : undefined,
-    payload: parsed.payload,
-  };
+export interface VoiceSupervisorAdapter {
+  start: (baseUrl: string, token: string) => void;
+  join: (channelId: number) => Promise<void>;
+  leave: () => Promise<void>;
+  setMute: (muted: boolean) => Promise<void>;
+  subscribe: (listener: (state: VoiceRuntimeState) => void) => () => void;
+  shutdown: () => Promise<void>;
+  getState: () => VoiceRuntimeState;
 }
 
 export function useVoiceSession({
   channels,
   me,
-  mode,
-  onStatusLine,
+  supervisor,
   selectedChannel,
-  token,
-}: VoiceOptions) {
-  const voiceSocketRef = useRef<WebSocket | null>(null);
+  onStatusLine,
+}: UseVoiceSessionOptions): VoiceSessionReturn {
+  const [state, setState] = useState<VoiceRuntimeState>(getInitialVoiceState);
 
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
-  const [voiceProtocol, setVoiceProtocol] = useState("v1");
-  const [voiceWsPath, setVoiceWsPath] = useState<string>(API_PATHS.voiceSocket);
-  const [voiceSocketReady, setVoiceSocketReady] = useState(false);
-  const [voiceChannelId, setVoiceChannelId] = useState<number | null>(null);
-  const [voiceParticipants, setVoiceParticipants] = useState<
-    VoiceParticipant[]
-  >([]);
-  const [voiceMuted, setVoiceMuted] = useState(false);
-
-  const voiceParticipantIndex = useMemo(() => {
-    return voiceParticipants.reduce<Record<number, VoiceParticipant>>(
-      (index, participant) => {
-        index[participant.user_id] = participant;
-        return index;
-      },
-      {},
-    );
-  }, [voiceParticipants]);
-
-  const voiceChannelName = useMemo(() => {
-    if (!voiceChannelId) {
-      return "none";
+  useEffect(() => {
+    if (!supervisor) {
+      return;
     }
 
-    return (
-      channels.find((channel) => channel.id === voiceChannelId)?.name ??
-      `${voiceChannelId}`
-    );
-  }, [channels, voiceChannelId]);
-
-  const configureVoice = useCallback(
-    (enabled: boolean, protocol: string, wsPath: string) => {
-      setVoiceEnabled(enabled);
-      setVoiceProtocol(protocol || "v1");
-      setVoiceWsPath(wsPath || API_PATHS.voiceSocket);
-    },
-    [],
-  );
-
-  const loadDemoVoiceState = useCallback((demoState: DemoVoiceState) => {
-    setVoiceEnabled(true);
-    setVoiceSocketReady(true);
-    setVoiceProtocol("v1");
-    setVoiceWsPath(API_PATHS.voiceSocket);
-    setVoiceChannelId(demoState.channelId);
-    setVoiceParticipants(demoState.participants);
-    setVoiceMuted(false);
-  }, []);
+    return supervisor.subscribe((newState) => {
+      setState(newState);
+    });
+  }, [supervisor]);
 
   const findTargetVoiceChannel = useCallback(() => {
     if (selectedChannel?.type === 2) {
@@ -162,29 +62,11 @@ export function useVoiceSession({
     return channels.find((channel) => channel.type === 2) ?? null;
   }, [channels, selectedChannel]);
 
-  const sendVoiceSignal = useCallback(
-    (type: string, channelId: number, payload?: unknown) => {
-      const socket = voiceSocketRef.current;
-      if (!socket || socket.readyState !== WebSocket.OPEN) {
-        onStatusLine("Voice signaling socket is not connected.");
-        return false;
-      }
-
-      const message: VoiceSignalMessage = {
-        version: voiceProtocol,
-        type,
-        request_id: randomRequestId(),
-        channel_id: channelId,
-        payload,
-      };
-
-      socket.send(JSON.stringify(message));
-      return true;
-    },
-    [onStatusLine, voiceProtocol],
-  );
-
   const joinVoice = useCallback(async () => {
+    if (!supervisor) {
+      return;
+    }
+
     const target = findTargetVoiceChannel();
     if (!target) {
       onStatusLine(
@@ -193,225 +75,55 @@ export function useVoiceSession({
       return;
     }
 
-    if (mode === "demo") {
-      setVoiceEnabled(true);
-      setVoiceSocketReady(true);
-      setVoiceChannelId(target.id);
-      setVoiceMuted(false);
-      setVoiceParticipants((prev) => {
-        const selfId = me?.id ?? 1;
-        if (prev.some((item) => item.user_id === selfId)) {
-          return prev;
-        }
-
-        return [...prev, { user_id: selfId, muted: false, speaking: false }];
-      });
-      onStatusLine(`Demo voice joined #${target.name}`);
-      return;
-    }
-
-    if (voiceChannelId && voiceChannelId !== target.id) {
-      sendVoiceSignal(VOICE_SIGNAL_TYPES.leave, voiceChannelId);
-      setVoiceChannelId(null);
-      setVoiceParticipants([]);
-    }
-
-    if (sendVoiceSignal(VOICE_SIGNAL_TYPES.join, target.id)) {
+    try {
+      await supervisor.join(target.id);
       onStatusLine(`Joining voice #${target.name}...`);
+    } catch (error) {
+      onStatusLine(`Failed to join voice: ${error}`);
     }
-  }, [
-    findTargetVoiceChannel,
-    me?.id,
-    mode,
-    onStatusLine,
-    sendVoiceSignal,
-    voiceChannelId,
-  ]);
+  }, [supervisor, findTargetVoiceChannel, onStatusLine]);
 
   const leaveVoice = useCallback(async () => {
-    if (!voiceChannelId) {
-      onStatusLine("You are not in a voice room.");
+    if (!supervisor) {
       return;
     }
 
-    if (mode === "demo") {
-      setVoiceChannelId(null);
-      setVoiceParticipants([]);
-      setVoiceMuted(false);
-      onStatusLine("Demo voice left.");
-      return;
-    }
-
-    if (sendVoiceSignal(VOICE_SIGNAL_TYPES.leave, voiceChannelId)) {
+    try {
+      await supervisor.leave();
       onStatusLine("Leaving voice room...");
+    } catch (error) {
+      onStatusLine(`Failed to leave voice: ${error}`);
     }
-  }, [mode, onStatusLine, sendVoiceSignal, voiceChannelId]);
+  }, [supervisor, onStatusLine]);
 
   const toggleVoiceMute = useCallback(async () => {
-    if (!voiceChannelId) {
-      onStatusLine("Join a voice room first.");
+    if (!supervisor) {
       return;
     }
 
-    const nextMuted = !voiceMuted;
+    const nextMuted = !state.muted;
 
-    if (mode === "demo") {
-      setVoiceMuted(nextMuted);
-      setVoiceParticipants((prev) =>
-        prev.map((participant) =>
-          participant.user_id === (me?.id ?? 1)
-            ? { ...participant, muted: nextMuted }
-            : participant,
-        ),
-      );
-      onStatusLine(nextMuted ? "Demo voice muted." : "Demo voice unmuted.");
-      return;
-    }
-
-    if (
-      sendVoiceSignal(VOICE_SIGNAL_TYPES.mute, voiceChannelId, {
-        muted: nextMuted,
-      })
-    ) {
-      setVoiceMuted(nextMuted);
+    try {
+      await supervisor.setMute(nextMuted);
       onStatusLine(nextMuted ? "Voice muted." : "Voice unmuted.");
+    } catch (error) {
+      onStatusLine(`Failed to toggle mute: ${error}`);
     }
-  }, [me?.id, mode, onStatusLine, sendVoiceSignal, voiceChannelId, voiceMuted]);
+  }, [supervisor, state.muted, onStatusLine]);
 
-  useEffect(() => {
-    if (!token || mode !== "online" || !voiceEnabled) {
-      return;
-    }
-
-    const socket = new WebSocket(
-      toWsUrl(APP_CONFIG.baseUrl, voiceWsPath, token),
-    );
-    voiceSocketRef.current = socket;
-
-    socket.onopen = () => {
-      setVoiceSocketReady(true);
-      onStatusLine("Voice signaling connected. Press F2 to join voice.");
-    };
-
-    socket.onmessage = (event) => {
-      const message = parseVoiceSignalMessage(String(event.data));
-      if (!message) {
-        return;
-      }
-
-      switch (message.type) {
-        case VOICE_SIGNAL_TYPES.joined:
-        case VOICE_SIGNAL_TYPES.roomState: {
-          const state = parseVoiceRoomState(message.payload);
-          const channelId = message.channel_id ?? state?.channel_id;
-          if (!state || channelId === undefined) {
-            break;
-          }
-
-          setVoiceChannelId(channelId);
-          setVoiceParticipants(state.participants);
-
-          const self = state.participants.find(
-            (participant) => participant.user_id === me?.id,
-          );
-          setVoiceMuted(self?.muted ?? false);
-          onStatusLine(`Voice joined channel ${channelId}`);
-          break;
-        }
-        case VOICE_SIGNAL_TYPES.left:
-          setVoiceChannelId(null);
-          setVoiceParticipants([]);
-          setVoiceMuted(false);
-          onStatusLine("Left voice room.");
-          break;
-        case VOICE_SIGNAL_TYPES.participantJoined: {
-          const participant = parseVoiceParticipant(message.payload);
-          if (!participant) {
-            break;
-          }
-
-          setVoiceParticipants((prev) => {
-            if (prev.some((item) => item.user_id === participant.user_id)) {
-              return prev;
-            }
-
-            return [...prev, participant];
-          });
-          break;
-        }
-        case VOICE_SIGNAL_TYPES.participantLeft: {
-          const participant = parseVoiceParticipant(message.payload);
-          if (!participant) {
-            break;
-          }
-
-          setVoiceParticipants((prev) =>
-            prev.filter((item) => item.user_id !== participant.user_id),
-          );
-          break;
-        }
-        case VOICE_SIGNAL_TYPES.participantUpdated: {
-          const participant = parseVoiceParticipant(message.payload);
-          if (!participant) {
-            break;
-          }
-
-          setVoiceParticipants((prev) =>
-            prev.map((item) =>
-              item.user_id === participant.user_id ? participant : item,
-            ),
-          );
-
-          if (participant.user_id === me?.id) {
-            setVoiceMuted(participant.muted);
-          }
-          break;
-        }
-        case VOICE_SIGNAL_TYPES.error: {
-          const payload = parseVoiceErrorPayload(message.payload);
-          const prefix = payload?.code ? `${payload.code}: ` : "";
-          onStatusLine(`${prefix}${payload?.message ?? "Voice error"}`);
-          break;
-        }
-        default:
-          break;
-      }
-    };
-
-    socket.onclose = () => {
-      voiceSocketRef.current = null;
-      setVoiceSocketReady(false);
-      setVoiceChannelId(null);
-      setVoiceParticipants([]);
-      setVoiceMuted(false);
-      onStatusLine("Voice signaling disconnected.");
-    };
-
-    socket.onerror = () => {
-      onStatusLine("Voice websocket error.");
-    };
-
-    return () => {
-      if (voiceSocketRef.current === socket) {
-        voiceSocketRef.current = null;
-      }
-      socket.close();
-    };
-  }, [me?.id, mode, onStatusLine, token, voiceEnabled, voiceWsPath]);
+  const voiceEnabled = state.phase !== "disabled" && state.phase !== "stopped";
 
   return {
-    configureVoice,
+    voiceEnabled,
+    voiceChannelId: state.channelId,
+    voiceChannelName: state.channelName,
+    voiceMuted: state.muted,
+    voiceParticipants: state.participants,
+    voicePhase: state.phase,
+    voiceSocketReady: state.socketReady,
+    voiceReconnecting: state.reconnecting,
     joinVoice,
     leaveVoice,
-    loadDemoVoiceState,
     toggleVoiceMute,
-    voiceChannelId,
-    voiceChannelName,
-    voiceEnabled,
-    voiceMuted,
-    voiceParticipantIndex,
-    voiceParticipants,
-    voiceProtocol,
-    voiceSocketReady,
   };
 }

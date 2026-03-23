@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { authenticate } from "./api/auth";
 import { fetchChannels } from "./api/channels";
 import { fetchUsers } from "./api/users";
@@ -16,6 +16,7 @@ import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useMessageSocket } from "./hooks/useMessageSocket";
 import { useUsers } from "./hooks/useUsers";
 import { useVoiceSession } from "./hooks/useVoiceSession";
+import { VoiceSupervisor, getInitialVoiceState, type VoiceRuntimeState } from "./voice";
 import type { AppMode, Channel, Pane, User } from "./types";
 import { asErrorMessage } from "./utils/errors";
 
@@ -34,6 +35,9 @@ export function App() {
   const [selectedChannelIndex, setSelectedChannelIndex] = useState(0);
   const [activePane, setActivePane] = useState<Pane>("channels");
   const [composer, setComposer] = useState("");
+
+  const voiceSupervisorRef = useRef<VoiceSupervisor | null>(null);
+  const [voiceState, setVoiceState] = useState<VoiceRuntimeState>(getInitialVoiceState());
 
   const {
     hydrateUser,
@@ -63,25 +67,23 @@ export function App() {
   });
 
   const {
-    configureVoice,
     joinVoice,
     leaveVoice,
-    loadDemoVoiceState,
     toggleVoiceMute,
     voiceChannelId,
     voiceChannelName,
     voiceEnabled,
     voiceMuted,
-    voiceParticipantIndex,
     voiceParticipants,
     voiceSocketReady,
+    voicePhase,
+    voiceReconnecting,
   } = useVoiceSession({
     channels,
     me,
-    mode,
-    onStatusLine: setStatusLine,
+    supervisor: voiceSupervisorRef.current,
     selectedChannel,
-    token,
+    onStatusLine: setStatusLine,
   });
 
   const selectChannelByIndex = useCallback(
@@ -157,19 +159,35 @@ export function App() {
 
         const voiceConfig = await fetchVoiceConfig(auth.token);
         if (voiceConfig.ok && voiceConfig.data.voice_enabled) {
-          configureVoice(
-            true,
-            voiceConfig.data.protocol_version,
-            voiceConfig.data.ws_endpoint,
+          const supervisor = new VoiceSupervisor();
+          voiceSupervisorRef.current = supervisor;
+
+          supervisor.start(
+            {
+              helperPath: APP_CONFIG.voiceHelperPath,
+              channels: sortedChannels,
+              onStateChange: (state) => {
+                setVoiceState(state);
+              },
+            },
+            APP_CONFIG.baseUrl,
+            auth.token,
+          );
+
+          setStatusLine(
+            `Connected to ${APP_CONFIG.baseUrl} as ${auth.user.username}. Voice helper started. Press F2 to join voice.`,
           );
         } else {
-          configureVoice(false, "v1", "/ws/rtc");
+          setVoiceState({
+            ...getInitialVoiceState(),
+            phase: "disabled",
+          });
+          setStatusLine(
+            `Connected to ${APP_CONFIG.baseUrl} as ${auth.user.username}. Voice not available.`,
+          );
         }
 
         setMode("online");
-        setStatusLine(
-          `Connected to ${APP_CONFIG.baseUrl} as ${auth.user.username}. Mouse enabled. Ctrl+S send, F2 voice, F3 mute, Esc quit.`,
-        );
       } catch (error) {
         if (cancelled) {
           return;
@@ -186,9 +204,14 @@ export function App() {
         setChannels(demo.channels);
         replaceUsers(Object.values(demo.usersById));
         replaceAll(demo.messagesByChannel, demo.loadedChannels);
-        loadDemoVoiceState({
+        setVoiceState({
+          ...getInitialVoiceState(),
+          phase: "ready",
           channelId: demo.voiceChannelId,
           participants: demo.voiceParticipants,
+          muted: false,
+          socketReady: true,
+          peerConnected: true,
         });
       }
     };
@@ -198,13 +221,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [
-    configureVoice,
-    loadDemoVoiceState,
-    mergeUsers,
-    replaceAll,
-    replaceUsers,
-  ]);
+  }, [mergeUsers, replaceAll, replaceUsers]);
 
   useEffect(() => {
     setSelectedChannelIndex((prev) => {
@@ -265,7 +282,26 @@ export function App() {
     token,
   });
 
+  useEffect(() => {
+    if (mode === "online" && voiceSupervisorRef.current) {
+      return () => {
+        voiceSupervisorRef.current?.shutdown();
+        voiceSupervisorRef.current = null;
+      };
+    }
+  }, [mode]);
+
   const selectedChannelName = selectedChannel?.name ?? null;
+
+  const voiceParticipantIndex = useMemo(() => {
+    return voiceParticipants.reduce<Record<number, { user_id: number; muted: boolean; speaking: boolean }>>(
+      (index, participant) => {
+        index[participant.user_id] = participant;
+        return index;
+      },
+      {},
+    );
+  }, [voiceParticipants]);
 
   const userPanelClick = useCallback((user: User) => {
     setStatusLine(
@@ -307,6 +343,8 @@ export function App() {
         voiceMuted={voiceMuted}
         voiceParticipantIndex={voiceParticipantIndex}
         voiceSocketReady={voiceSocketReady}
+        voicePhase={voicePhase}
+        voiceReconnecting={voiceReconnecting}
       />
     ),
     [
@@ -320,6 +358,8 @@ export function App() {
       voiceMuted,
       voiceParticipantIndex,
       voiceSocketReady,
+      voicePhase,
+      voiceReconnecting,
     ],
   );
 

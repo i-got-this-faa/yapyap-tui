@@ -3,6 +3,7 @@ export const APP_CONFIG = {
   baseUrl: process.env.YAPYAP_BASE_URL ?? "http://3.109.124.247:8080",
   password: process.env.YAPYAP_PASSWORD ?? "tui-pass-123",
   username: process.env.YAPYAP_USERNAME ?? "tui-user",
+  voiceHelperPath: process.env.YAPYAP_VOICE_HELPER ?? "./yapyap-voice-agent",
 } as const;
 
 export const SERVER_EVENT_TYPES = {
