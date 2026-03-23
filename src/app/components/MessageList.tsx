@@ -20,7 +20,7 @@ export function MessageList({
       <text fg={colors.headerText}>
         current channel content {channelName ? `#${channelName}` : ""}
       </text>
-      <scrollbox flexGrow={1}>
+      <scrollbox flexGrow={1} stickyScroll stickyStart="bottom">
         {messages.length === 0 ? (
           <text fg={colors.dimText}>No messages in this channel.</text>
         ) : (
