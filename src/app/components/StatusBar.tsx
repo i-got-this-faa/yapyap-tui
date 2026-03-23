@@ -8,6 +8,7 @@ interface StatusBarProps {
 export function StatusBar({ mode, statusLine }: StatusBarProps) {
   return (
     <box
+      flexShrink={0}
       flexDirection="row"
       backgroundColor={colors.inputFocusedBackground}
       paddingX={1}

@@ -39,7 +39,7 @@ export function AppShell({
         </box>
         {users}
       </box>
-      <box height={1} backgroundColor={colors.appBackground} />
+      <box flexShrink={0} height={1} backgroundColor={colors.appBackground} />
       {statusBar}
     </box>
   );

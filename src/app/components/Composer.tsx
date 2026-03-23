@@ -29,6 +29,7 @@ export function Composer({
 
   return (
     <box
+      flexShrink={0}
       border={["top"]}
       borderStyle="single"
       borderColor={colors.border}
@@ -42,10 +43,9 @@ export function Composer({
       <text fg={isFocused ? colors.accent1 : colors.dimText}>
         <strong>❯ </strong>
       </text>
-      <box flexGrow={1}>
+      <box flexGrow={1} flexDirection="column">
         <input
           focused={isFocused}
-          width="100%"
           value={composer}
           onChange={onChange}
           onSubmit={onSubmit}
