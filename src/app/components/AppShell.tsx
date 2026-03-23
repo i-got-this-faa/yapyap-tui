@@ -7,6 +7,7 @@ interface AppShellProps {
   composer: ReactNode;
   messages: ReactNode;
   users: ReactNode;
+  statusBar?: ReactNode;
 }
 
 export function AppShell({
@@ -14,24 +15,32 @@ export function AppShell({
   composer,
   messages,
   users,
+  statusBar,
 }: AppShellProps) {
   return (
-    <box flexGrow={1} padding={1} backgroundColor={colors.appBackground}>
+    <box
+      flexGrow={1}
+      backgroundColor={colors.appBackground}
+      flexDirection="column"
+    >
       <box
         flexGrow={1}
-        border
-        borderStyle="rounded"
-        borderColor={colors.border}
         flexDirection="row"
-        backgroundColor={colors.panelBackground}
+        backgroundColor={colors.appBackground}
       >
         {channels}
-        <box flexGrow={1} flexDirection="column">
-          {users}
+        <box
+          flexGrow={1}
+          flexDirection="column"
+          backgroundColor={colors.panelBackground}
+        >
           {messages}
           {composer}
         </box>
+        {users}
       </box>
+      <box height={1} backgroundColor={colors.appBackground} />
+      {statusBar}
     </box>
   );
 }

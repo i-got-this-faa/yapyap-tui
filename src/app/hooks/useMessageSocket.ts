@@ -248,7 +248,10 @@ export function useMessageSocket({
         case SERVER_EVENT_TYPES.messageDeleted: {
           const payload = parseMessageDeletedPayload(parsed.data);
           if (payload) {
-            handlersRef.current.onMessageDeleted(payload.id, payload.channel_id);
+            handlersRef.current.onMessageDeleted(
+              payload.id,
+              payload.channel_id,
+            );
           }
           break;
         }

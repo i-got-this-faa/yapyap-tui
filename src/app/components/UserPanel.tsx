@@ -1,5 +1,5 @@
-import type { User, VoiceParticipant } from "../types";
 import { colors } from "../theme";
+import type { User, VoiceParticipant } from "../types";
 
 interface UserPanelProps {
   knownUsers: readonly User[];
@@ -26,52 +26,54 @@ export function UserPanel({
   voiceParticipantIndex,
   voiceSocketReady,
 }: UserPanelProps) {
+  const voiceState = voiceEnabled ? (voiceSocketReady ? "rdy" : "con") : "off";
+
   return (
     <box
-      height={12}
-      border={["bottom"]}
+      width={25}
+      border={["left"]}
+      borderStyle="single"
       borderColor={colors.border}
-      paddingX={2}
+      paddingX={1}
       paddingTop={1}
       paddingBottom={1}
+      flexDirection="column"
+      backgroundColor={colors.panelBackground}
     >
-      <text fg={colors.headerText}>connected users</text>
-      <text fg={colors.tertiaryText}>
-        voice:{" "}
-        {voiceEnabled
-          ? voiceSocketReady
-            ? "ready"
-            : "connecting"
-          : "disabled"}{" "}
-        | room: #{voiceChannelName} | {voiceMuted ? "muted" : "unmuted"}
+      <text fg={colors.headerText}>
+        <strong>USERS</strong>
       </text>
 
-      <box flexDirection="row" gap={1} marginBottom={1}>
+      <box height={1} />
+
+      <text fg={colors.dimText}>
+        {voiceState} | #{voiceChannelName} | {voiceMuted ? "mut" : "unm"}
+      </text>
+
+      <box flexDirection="column" gap={1} marginTop={1} marginBottom={1}>
         <box
-          border
-          borderStyle="rounded"
-          borderColor={colors.border}
+          backgroundColor={colors.inputBackground}
           paddingX={1}
           onMouseDown={onToggleVoice}
           focusable
         >
-          <text fg={colors.headerText}>
-            {voiceChannelId ? "Leave Voice (F2)" : "Join Voice (F2)"}
+          <text fg={colors.primaryText}>
+            {voiceChannelId ? "■ Leave Voice" : "▶ Join Voice"}
           </text>
         </box>
         <box
-          border
-          borderStyle="rounded"
-          borderColor={colors.border}
+          backgroundColor={colors.inputBackground}
           paddingX={1}
           onMouseDown={onToggleVoiceMute}
           focusable
         >
-          <text fg={colors.headerText}>
-            {voiceMuted ? "Unmute (F3)" : "Mute (F3)"}
+          <text fg={colors.primaryText}>
+            {voiceMuted ? "🔊 Unmute" : "🔇 Mute"}
           </text>
         </box>
       </box>
+
+      <box height={1} />
 
       <scrollbox flexGrow={1}>
         {knownUsers.length === 0 ? (
@@ -79,20 +81,19 @@ export function UserPanel({
         ) : (
           knownUsers.map((user) => {
             const inVoice = voiceParticipantIndex[user.id];
+            const isOnline = user.status === 1;
+            const statusIcon = isOnline ? "●" : "○";
+
             return (
               <text
                 key={`user-${user.id}`}
-                fg={user.status === 1 ? colors.onlineUser : colors.offlineUser}
+                fg={isOnline ? colors.onlineUser : colors.offlineUser}
                 onMouseDown={() => {
                   onSelectUser(user);
                 }}
               >
-                {user.status === 1 ? "[ON ]" : "[OFF]"} {user.username}
-                {inVoice
-                  ? inVoice.muted
-                    ? "  [voice muted]"
-                    : "  [voice]"
-                  : ""}
+                {statusIcon} {user.username}
+                {inVoice ? (inVoice.muted ? " 🔇" : " 🔊") : ""}
               </text>
             );
           })

@@ -1,5 +1,5 @@
-import type { AppMode, Channel, Pane } from "../types";
 import { colors } from "../theme";
+import type { AppMode, Channel, Pane } from "../types";
 
 interface ComposerProps {
   activePane: Pane;
@@ -15,52 +15,46 @@ interface ComposerProps {
 export function Composer({
   activePane,
   composer,
-  mode,
   onChange,
   onFocus,
   onSubmit,
   selectedChannel,
-  statusLine,
 }: ComposerProps) {
   const selectedChannelIsVoice = selectedChannel?.type === 2;
   const placeholder = selectedChannel
     ? `Message #${selectedChannel.name}${selectedChannelIsVoice ? " (text in voice channel)" : ""}`
     : "Select a channel to type...";
 
+  const isFocused = activePane === "composer";
+
   return (
     <box
       border={["top"]}
+      borderStyle="single"
       borderColor={colors.border}
       paddingX={2}
-      paddingY={1}
-      flexDirection="column"
+      paddingBottom={1}
+      flexDirection="row"
       onMouseDown={onFocus}
+      backgroundColor={
+        isFocused ? colors.inputFocusedBackground : colors.inputBackground
+      }
     >
-      <box
-        border
-        borderStyle="rounded"
-        borderColor={colors.border}
-        paddingX={1}
-      >
-        <input
-          focused={activePane === "composer"}
-          value={composer}
-          onChange={onChange}
-          onSubmit={onSubmit}
-          placeholder={placeholder}
-          placeholderColor={colors.placeholderText}
-          textColor={colors.primaryText}
-          focusedBackgroundColor={colors.inputFocusedBackground}
-          backgroundColor={colors.inputBackground}
-        />
-      </box>
-      <text fg={colors.dimText}>
-        {mode === "booting" ? "booting..." : mode.toUpperCase()} | {statusLine}
+      <text fg={isFocused ? colors.accent1 : colors.dimText}>
+        <strong>❯ </strong>
       </text>
-      <text fg={colors.mutedText}>
-        Mouse: click channels/buttons. Keys: Tab focus, j/k move, 1-9 jump,
-        Ctrl+S send, F2 voice join/leave, F3 mute.
-      </text>
+      <input
+        focused={isFocused}
+        flexGrow={1}
+        value={composer}
+        onChange={onChange}
+        onSubmit={onSubmit}
+        placeholder={placeholder}
+        placeholderColor={colors.placeholderText}
+        textColor={colors.primaryText}
+        focusedBackgroundColor={colors.inputFocusedBackground}
+        backgroundColor={colors.inputBackground}
+      />
     </box>
   );
 }

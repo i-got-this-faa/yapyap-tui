@@ -1,5 +1,5 @@
-import type { Message, UserIndex } from "../types";
 import { colors } from "../theme";
+import type { Message, UserIndex } from "../types";
 import { prettyTime } from "../utils/time";
 
 interface MessageListProps {
@@ -16,10 +16,20 @@ export function MessageList({
   usersById,
 }: MessageListProps) {
   return (
-    <box flexGrow={1} paddingX={2} paddingY={1}>
-      <text fg={colors.headerText}>
-        current channel content {channelName ? `#${channelName}` : ""}
-      </text>
+    <box flexGrow={1} paddingX={2} paddingTop={1} flexDirection="column">
+      <box
+        paddingBottom={1}
+        border={["bottom"]}
+        borderStyle="single"
+        borderColor={colors.border}
+      >
+        <text fg={colors.headerText}>
+          <strong>
+            {channelName ? `#${channelName}` : "No Channel Selected"}
+          </strong>
+        </text>
+      </box>
+      <box height={1} />
       <scrollbox flexGrow={1} stickyScroll stickyStart="bottom">
         {messages.length === 0 ? (
           <text fg={colors.dimText}>No messages in this channel.</text>
@@ -31,12 +41,18 @@ export function MessageList({
               <box
                 key={`msg-${message.id}`}
                 marginBottom={1}
+                flexDirection="column"
                 onMouseDown={() => {
                   onSelectMessage(message, author);
                 }}
               >
-                <text fg={colors.timestampText}>
-                  [{prettyTime(message.created_at)}] {author}
+                <text>
+                  <span fg={colors.accent3}>
+                    [{prettyTime(message.created_at)}]
+                  </span>{" "}
+                  <span fg={colors.accent4}>
+                    <strong>{author}</strong>
+                  </span>
                 </text>
                 <text fg={colors.messageText}>{message.content}</text>
               </box>

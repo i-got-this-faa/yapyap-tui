@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-
+import { authenticate } from "./api/auth";
 import { fetchChannels } from "./api/channels";
 import { fetchUsers } from "./api/users";
 import { fetchVoiceConfig } from "./api/voice";
-import { authenticate } from "./api/auth";
 import { AppShell } from "./components/AppShell";
 import { ChannelSidebar } from "./components/ChannelSidebar";
 import { Composer } from "./components/Composer";
 import { MessageList } from "./components/MessageList";
+import { StatusBar } from "./components/StatusBar";
 import { UserPanel } from "./components/UserPanel";
+import { APP_CONFIG } from "./config";
 import { createDemoState } from "./data/demoState";
 import { useChannelMessages } from "./hooks/useChannelMessages";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
@@ -17,7 +18,6 @@ import { useUsers } from "./hooks/useUsers";
 import { useVoiceSession } from "./hooks/useVoiceSession";
 import type { AppMode, Channel, Pane, User } from "./types";
 import { asErrorMessage } from "./utils/errors";
-import { APP_CONFIG } from "./config";
 
 function sortChannels(channels: readonly Channel[]): Channel[] {
   return [...channels].sort((left, right) =>
@@ -366,6 +366,7 @@ export function App() {
       users={userPanel}
       messages={messageList}
       composer={composerBox}
+      statusBar={<StatusBar mode={mode} statusLine={statusLine} />}
     />
   );
 }
