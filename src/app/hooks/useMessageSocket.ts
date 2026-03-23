@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { API_PATHS, APP_CONFIG, SERVER_EVENT_TYPES } from "../config";
 import type {
@@ -157,6 +157,39 @@ export function useMessageSocket({
   onUserStatus,
   token,
 }: UseMessageSocketOptions) {
+  const handlersRef = useRef({
+    onChannelCreated,
+    onChannelDeleted,
+    onChannelUpdated,
+    onMessageCreated,
+    onMessageDeleted,
+    onMessageUpdated,
+    onServerStatus,
+    onUserStatus,
+  });
+
+  useEffect(() => {
+    handlersRef.current = {
+      onChannelCreated,
+      onChannelDeleted,
+      onChannelUpdated,
+      onMessageCreated,
+      onMessageDeleted,
+      onMessageUpdated,
+      onServerStatus,
+      onUserStatus,
+    };
+  }, [
+    onChannelCreated,
+    onChannelDeleted,
+    onChannelUpdated,
+    onMessageCreated,
+    onMessageDeleted,
+    onMessageUpdated,
+    onServerStatus,
+    onUserStatus,
+  ]);
+
   useEffect(() => {
     if (!token || mode !== "online") {
       return;
@@ -167,7 +200,7 @@ export function useMessageSocket({
     );
 
     socket.onopen = () => {
-      onServerStatus("Live message updates connected.");
+      handlersRef.current.onServerStatus("Live message updates connected.");
     };
 
     socket.onmessage = (event) => {
@@ -180,42 +213,42 @@ export function useMessageSocket({
         case SERVER_EVENT_TYPES.channelCreated: {
           const channel = parseChannel(parsed.data);
           if (channel) {
-            onChannelCreated(channel);
+            handlersRef.current.onChannelCreated(channel);
           }
           break;
         }
         case SERVER_EVENT_TYPES.channelUpdated: {
           const channel = parseChannel(parsed.data);
           if (channel) {
-            onChannelUpdated(channel);
+            handlersRef.current.onChannelUpdated(channel);
           }
           break;
         }
         case SERVER_EVENT_TYPES.channelDeleted: {
           const payload = parseChannelDeletedPayload(parsed.data);
           if (payload) {
-            onChannelDeleted(payload.id);
+            handlersRef.current.onChannelDeleted(payload.id);
           }
           break;
         }
         case SERVER_EVENT_TYPES.messageCreated: {
           const message = parseMessage(parsed.data);
           if (message) {
-            onMessageCreated(message);
+            handlersRef.current.onMessageCreated(message);
           }
           break;
         }
         case SERVER_EVENT_TYPES.messageUpdated: {
           const message = parseMessage(parsed.data);
           if (message) {
-            onMessageUpdated(message);
+            handlersRef.current.onMessageUpdated(message);
           }
           break;
         }
         case SERVER_EVENT_TYPES.messageDeleted: {
           const payload = parseMessageDeletedPayload(parsed.data);
           if (payload) {
-            onMessageDeleted(payload.id, payload.channel_id);
+            handlersRef.current.onMessageDeleted(payload.id, payload.channel_id);
           }
           break;
         }
@@ -223,7 +256,7 @@ export function useMessageSocket({
           const payload = parseUserStatusPayload(parsed.data);
           const userId = payload?.user_id ?? payload?.id;
           if (userId !== undefined) {
-            onUserStatus(userId, payload?.status ?? 0);
+            handlersRef.current.onUserStatus(userId, payload?.status ?? 0);
           }
           break;
         }
@@ -231,7 +264,7 @@ export function useMessageSocket({
         case SERVER_EVENT_TYPES.serverInfo: {
           const payload = parseStatusMessage(parsed.data);
           if (payload?.message) {
-            onServerStatus(payload.message);
+            handlersRef.current.onServerStatus(payload.message);
           }
           break;
         }
@@ -241,28 +274,19 @@ export function useMessageSocket({
     };
 
     socket.onclose = () => {
-      onServerStatus(
+      handlersRef.current.onServerStatus(
         "Live message updates disconnected. REST still available.",
       );
     };
 
     socket.onerror = () => {
-      onServerStatus("Message websocket error. REST mode still active.");
+      handlersRef.current.onServerStatus(
+        "Message websocket error. REST mode still active.",
+      );
     };
 
     return () => {
       socket.close();
     };
-  }, [
-    mode,
-    onChannelCreated,
-    onChannelDeleted,
-    onChannelUpdated,
-    onMessageCreated,
-    onMessageDeleted,
-    onMessageUpdated,
-    onServerStatus,
-    onUserStatus,
-    token,
-  ]);
+  }, [mode, token]);
 }
