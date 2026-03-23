@@ -4,13 +4,17 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun run --watch src/index.tsx"
+    "dev": "bun run --watch src/index.tsx",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "check": "tsc --noEmit"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.8",
     "@types/bun": "latest"
   },
   "peerDependencies": {
-    "typescript": "^5"
+    "typescript": "^5.9.3"
   },
   "dependencies": {
     "@opentui/core": "^0.1.84",
